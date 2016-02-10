@@ -47,14 +47,16 @@ shinyServer(function(input, output) {
     etfRet = apply(etfClose, 2, FUN=function(v) {calcRet(v)})
     
     # Maximum gain-loss portfolio
-    port.l = backtestPortfolio( etfRet, portfolioWeights, gainLossRatio, emaMean, emaWin=12, adj=0.3 )
+    port.l = backtestPortfolio( etfRet, portfolioWeights, gainLossRatio, emaMean, 
+                                emaWin=as.numeric(inp$emawin), adj=as.numeric(inp$adj) )
     portRet = calcBacktestRet(port.l, etfClose)
     
     # Maximum Sharpe ratio portfolio
-    portSharpe.l = backtestPortfolio( etfRet, portfolioWeights, sharpeRatio, emaMean, emaWin=12, adj=0.3)
+    portSharpe.l = backtestPortfolio( etfRet, portfolioWeights, sharpeRatio, emaMean, 
+                                      emaWin=as.numeric(inp$emawin), adj=as.numeric(inp$adj))
     portRetSharpe = calcBacktestRet(portSharpe.l, etfClose)
     
-    sp500Sym = "^GSPC"
+    sp500Sym = inp$benchmark
     benchQtrClose = getBenchmark( sp500Sym, port.l, etfClose)
     benchRet = calcRet(benchQtrClose)
     
@@ -159,7 +161,8 @@ library(stringr)
 #
 # func: the filter function for assets.
 #
-backtestPortfolio = function(etfRet, portfolioFunc, filterFunc, alphaFunc, emaWin = 12, adj = 0.10) {
+backtestPortfolio = function(etfRet, portfolioFunc, filterFunc, alphaFunc, emaWin = 12, 
+                             adj = 0.10) {
   dataDates = rownames(etfRet)
   numWeeks = length(dataDates)
   endIx = rev( seq(from=numWeeks, to=53, by=-12))
@@ -182,7 +185,8 @@ backtestPortfolio = function(etfRet, portfolioFunc, filterFunc, alphaFunc, emaWi
 # func: the function to provide the values for filtering. For example, gainLossRatio or
 # shareRatio
 #
-calcPortfolioWeights = function(retBlock, portfolioFunc, filterFunc, alphaFunc, emaWin = 12, adj = 0.10) {
+calcPortfolioWeights = function(retBlock, portfolioFunc, filterFunc, alphaFunc, emaWin = 12, 
+                                adj = 0.10) {
   selectAssets = filterAssets(retBlock, filterFunc )
   if (length(selectAssets) > 1) {
     assetRet.z = zoo(retBlock[,selectAssets])
