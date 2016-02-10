@@ -7,97 +7,8 @@ shinyServer(function(input, output) {
   # (i.e., when the button is pressed)
   ntext <- eventReactive(input$goButton, {
     input
-  })
-  
-  
-  output$table <- renderTable({
     
-    # input$file1 will be NULL initially. After the user selects
-    # and uploads a file, it will be a data frame with 'name',
-    # 'size', 'type', and 'datapath' columns. The 'datapath'
-    # column will contain the local filenames where the data can
-    # be found.
-    inp = ntext()
-    inFile <- inp$file1
-    
-    if (is.null(inFile))
-      return(NULL)
-    
-    read.csv(inFile$datapath, header=input$header, sep=input$sep, 
-             quote=input$quote)
-  })
-  # Generate a plot of the data. Also uses the inputs to build
-  # the plot label. Note that the dependencies on both the inputs
-  # and the data reactive expression are both tracked, and
-  # all expressions are called in the sequence implied by the
-  # dependency graph
-  output$plot <- renderPlot({
-    
-    inp = ntext()
-    inFile <- inp$file1
-    
-    if (is.null(inFile))
-      return(NULL)
-    
-    symlist.m = read.csv(inFile$datapath, header=input$header, sep=input$sep, 
-             quote=input$quote)
-    etfUniv = as.vector(symlist.m[,"sym"])
-    
-    # get start and end date of simulation
-    # ETF symbols plus explaination
-    etfPort = c("SHY", "Core short-term US Bond", "Fixed Income", "2002-07-22",
-                "AGG", "Core Total US Bond Market",  "Fixed Income", "2003-09-22",
-                "HYG", "High Yield Corporate Bond ETF", "Fixed Income", "2007-04-04",
-                "SPY", "S&P 500", "Equity", "2000-07-24",
-                "XLU", "Utilities Select Sector", "Equity", "1998-12-16",
-                "XPH", "S&P Pharmaceuticals", "Equity", "2006-06-19", 
-                "XSD", "S&P Semiconductor", "Equity", "2006-01-31",
-                "XRT", "S&P Retail", "Equity", "2006-06-19",
-                "XHB", "S&P Homebuilders", "Equity", "2006-01-31",
-                "XOP", "Oil and Gas", "Equity", "2006-06-19")
-    
-    etfPort.m = matrix(etfPort, ncol=4, byrow=T)
-    colnames(etfPort.m) = c("sym", "desc", "type", "start")
-    portfolioEndDate = inp$dateRange[2]
-    
-    startDates = as.Date(etfPort.m[,"start"], format="%Y-%m-%d")
-    # the end of the period, going backward
-    startDateIx = which.max(startDates)
-    startDate = as.Date(startDates[startDateIx])
-    endDate = findMarketDate(as.Date(portfolioEndDate))
-    
-    t = getCloseData(etfUniv, startDate, endDate)
-    etfClose = data.frame(t)
-
-    etfRet = apply(etfClose, 2, FUN=function(v) {calcRet(v)})
-    
-    # Maximum gain-loss portfolio
-    port.l = backtestPortfolio( etfRet, portfolioWeights, gainLossRatio, emaMean, emaWin=12, adj=0.3 )
-    portRet = calcBacktestRet(port.l, etfClose)
-    
-    # Maximum Sharpe ratio portfolio
-    portSharpe.l = backtestPortfolio( etfRet, portfolioWeights, sharpeRatio, emaMean, emaWin=12, adj=0.3)
-    portRetSharpe = calcBacktestRet(portSharpe.l, etfClose)
-    
-    sp500Sym = "^GSPC"
-    benchQtrClose = getBenchmark( sp500Sym, port.l, etfClose)
-    benchRet = calcRet(benchQtrClose)
-    
-    maxRetData = cbind(portRet, portRetSharpe, as.numeric(benchRet))
-    colnames(maxRetData) = c("gain-loss", "Sharpe", "^GSPC")
-    par(mfrow=c(1,1))
-    chart.CumReturns(maxRetData, wealth.index=T, main="Maximum Gain-loss and Sharpe Ratio portfolios, with ^GSPC", 
-                     col=c("blue", "magenta", "red"), legend.loc="topleft", 
-                     lwd=4, lty = c(2, 4, 1), grid.color="slategrey")
-    abline(h = 1, col="grey30")
-    par(mfrow=c(1,1))
-
-  })
-  
-  # Generate a summary of the data
-  output$summary <- renderTable({
-
-    inp = ntext()
+    inp = input
     inFile <- inp$file1
     
     if (is.null(inFile))
@@ -130,13 +41,10 @@ shinyServer(function(input, output) {
     startDate = as.Date(startDates[startDateIx])
     endDate = findMarketDate(as.Date(portfolioEndDate))
     
-    
     t = getCloseData(etfUniv, startDate, endDate)
     etfClose = data.frame(t)
+    
     etfRet = apply(etfClose, 2, FUN=function(v) {calcRet(v)})
-    
-    
-    
     
     # Maximum gain-loss portfolio
     port.l = backtestPortfolio( etfRet, portfolioWeights, gainLossRatio, emaMean, emaWin=12, adj=0.3 )
@@ -150,8 +58,55 @@ shinyServer(function(input, output) {
     benchQtrClose = getBenchmark( sp500Sym, port.l, etfClose)
     benchRet = calcRet(benchQtrClose)
     
+    return(list(file.frame = symlist.m, sharpe.port = portSharpe.l, sharpe.ret = portRetSharpe, 
+                maxgl.port = port.l, maxgl.ret = portRet, bench.close = benchQtrClose,
+                bench.ret = benchRet))
+  })
+  
+  
+  output$table <- renderTable({
+    
+    # input$file1 will be NULL initially. After the user selects
+    # and uploads a file, it will be a data frame with 'name',
+    # 'size', 'type', and 'datapath' columns. The 'datapath'
+    # column will contain the local filenames where the data can
+    # be found.
+    inp = ntext()
+    inp$file.frame
+  })
+  # Generate a plot of the data. Also uses the inputs to build
+  # the plot label. Note that the dependencies on both the inputs
+  # and the data reactive expression are both tracked, and
+  # all expressions are called in the sequence implied by the
+  # dependency graph
+  output$plot <- renderPlot({
+    
+    inp = ntext()
+    portRet = inp$maxgl.ret
+    portRetSharpe = inp$sharpe.ret
+    benchRet = inp$bench.ret
+    
     maxRetData = cbind(portRet, portRetSharpe, as.numeric(benchRet))
     colnames(maxRetData) = c("gain-loss", "Sharpe", "^GSPC")
+    par(mfrow=c(1,1))
+    chart.CumReturns(maxRetData, wealth.index=T, main="Maximum Gain-loss and Sharpe Ratio portfolios, with ^GSPC", 
+                     col=c("blue", "magenta", "red"), legend.loc="topleft", 
+                     lwd=4, lty = c(2, 4, 1), grid.color="slategrey")
+    abline(h = 1, col="grey30")
+    par(mfrow=c(1,1))
+
+  })
+  
+  # Generate a summary of the data
+  output$summary <- renderTable({
+    
+    
+    inp = ntext()
+    portRet = inp$maxgl.ret
+    portRetSharpe = inp$sharpe.ret
+    benchRet = inp$bench.ret
+    port.l = inp$maxgl.port
+    portSharpe.l = inp$sharpe.port
     
     get.weights = function(x){
       x$indexes = paste(names(x$weights), collapse  = " ~ ")
@@ -167,8 +122,6 @@ shinyServer(function(input, output) {
     
     LS.df.port
   
-
-    
   })
 })
 
